@@ -762,7 +762,54 @@
         </div>
       </section>
 
-      <!-- 2. Filtres & fournisseur -->
+      <!-- 2. Synthèse & KPIs (REMONTÉ AVANT FILTRES) -->
+      <section class="acc-section open">
+        <button class="acc-header">
+          <div class="acc-header-main">
+            <span id="synthPanelTitle">Synthèse & KPIs</span>
+            <span class="acc-header-pill" id="synthPill">Vue agrégée</span>
+          </div>
+          <span class="acc-chevron">▾</span>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <div class="card card-slim" style="box-shadow:none;border:none;padding:0;background:transparent;">
+              <div class="card-h" id="synthesisHeader">Synthèse</div>
+              <div class="card-b">
+                <div class="kpi-grid">
+                  <div class="kpi">
+                    <div class="label"><span id="kpi_dc_label">DC affichés</span></div>
+                    <div id="k_total" class="value">—</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="label"><span id="kpi_suppliers_label">Fournisseurs</span></div>
+                    <div id="k_suppliers" class="value">—</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="label"><span id="kpi_countries_label">Pays</span></div>
+                    <div id="k_countries" class="value">—</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="label"><span id="kpi_types_label">Majeur / Opportuniste</span></div>
+                    <div id="k_types" class="value">—</div>
+                  </div>
+                </div>
+
+                <div class="list">
+                  <strong id="topCountriesTitle">Top pays</strong>
+                  <div id="listCountries"></div>
+                </div>
+                <div class="list">
+                  <strong id="topSuppliersTitle">Top fournisseurs</strong>
+                  <div id="listSuppliers"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Filtres & fournisseur (DESCENDU APRÈS SYNTHÈSE) -->
       <section class="acc-section open">
         <button class="acc-header">
           <div class="acc-header-main">
@@ -817,53 +864,6 @@
                   </div>
                 </div>
 
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 3. Synthèse & KPIs -->
-      <section class="acc-section open">
-        <button class="acc-header">
-          <div class="acc-header-main">
-            <span id="synthPanelTitle">Synthèse & KPIs</span>
-            <span class="acc-header-pill" id="synthPill">Vue agrégée</span>
-          </div>
-          <span class="acc-chevron">▾</span>
-        </button>
-        <div class="acc-body">
-          <div class="acc-inner">
-            <div class="card card-slim" style="box-shadow:none;border:none;padding:0;background:transparent;">
-              <div class="card-h" id="synthesisHeader">Synthèse</div>
-              <div class="card-b">
-                <div class="kpi-grid">
-                  <div class="kpi">
-                    <div class="label"><span id="kpi_dc_label">DC affichés</span></div>
-                    <div id="k_total" class="value">—</div>
-                  </div>
-                  <div class="kpi">
-                    <div class="label"><span id="kpi_suppliers_label">Fournisseurs</span></div>
-                    <div id="k_suppliers" class="value">—</div>
-                  </div>
-                  <div class="kpi">
-                    <div class="label"><span id="kpi_countries_label">Pays</span></div>
-                    <div id="k_countries" class="value">—</div>
-                  </div>
-                  <div class="kpi">
-                    <div class="label"><span id="kpi_types_label">Majeur / Opportuniste</span></div>
-                    <div id="k_types" class="value">—</div>
-                  </div>
-                </div>
-
-                <div class="list">
-                  <strong id="topCountriesTitle">Top pays</strong>
-                  <div id="listCountries"></div>
-                </div>
-                <div class="list">
-                  <strong id="topSuppliersTitle">Top fournisseurs</strong>
-                  <div id="listSuppliers"></div>
-                </div>
               </div>
             </div>
           </div>
@@ -1134,14 +1134,10 @@ document.addEventListener("DOMContentLoaded",function(){
   const map=L.map('map',{zoomControl:true}).setView([20,0],2);
   window.map = map;
 
-  /* Fond de carte plus coloré : OpenStreetMap standard */
+  /* Fond de carte jour, coloré */
   const lightTiles = L.tileLayer(
     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     {attribution:'&copy; OpenStreetMap contributors'}
-  );
-  const darkTiles  = L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    {attribution:'&copy; OpenStreetMap &copy; CARTO'}
   );
   lightTiles.addTo(map);
 
@@ -1570,7 +1566,6 @@ document.addEventListener("DOMContentLoaded",function(){
     langSeg.setAttribute('data-on', LANG==='en' ? 'right' : 'left');
     praModeSeg.setAttribute('data-on', (localStorage.getItem('dcmap_pra_mode')||'max')==='min'?'right':'left');
 
-    /* Réactualiser les textes dérivés */
     summarize(currentSubset);
   }
 
@@ -1580,21 +1575,15 @@ document.addEventListener("DOMContentLoaded",function(){
     setLangTexts();
   });
 
-  function setTheme(mode){
+  /* Forcer thème jour (pas de mode nuit) */
+  function setTheme(){
     const root=document.documentElement;
-    if(mode==='dark'){
-      root.classList.add('dark'); themeSeg.setAttribute('data-on','right'); localStorage.setItem('dcmap_theme','dark');
-      map.removeLayer(lightTiles); darkTiles.addTo(map);
-      logDebug('Thème "dark" activé (technique, même si le switch est caché).');
-    }else{
-      root.classList.remove('dark'); themeSeg.setAttribute('data-on','left'); localStorage.setItem('dcmap_theme','light');
-      map.removeLayer(darkTiles); lightTiles.addTo(map);
-      logDebug('Thème "light" activé.');
-    }
+    root.classList.remove('dark');
+    themeSeg.setAttribute('data-on','left');
+    localStorage.setItem('dcmap_theme','light');
+    logDebug('Thème "light" forcé (pas de mode nuit / carte jour).');
   }
-  themeSeg.addEventListener('click', ()=>{
-    const isDark=!document.documentElement.classList.contains('dark'); setTheme(isDark?'dark':'light');
-  });
+  themeSeg.addEventListener('click', ()=>{ setTheme(); });
 
   /* PRA mode toggle */
   function getPraMode(){ return (praModeSeg.getAttribute('data-on')==='right')?'min':'max'; }
@@ -1888,7 +1877,7 @@ document.addEventListener("DOMContentLoaded",function(){
       logDebug(`Répartition : OPEN=${DATA_OPEN.length}, FROZEN=${DATA_FROZEN.length}, CLOSED=${DATA_CLOSED.length}.`);
 
       setLangTexts();
-      setTheme(localStorage.getItem('dcmap_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+      setTheme();
       const savedPra = parseFloat(localStorage.getItem('dcmap_pra_km')); if(Number.isFinite(savedPra)) praKmInput.value = savedPra;
       const savedMode = localStorage.getItem('dcmap_pra_mode')||'max'; praModeSeg.setAttribute('data-on', savedMode==='min'?'right':'left');
 
@@ -2021,9 +2010,9 @@ document.addEventListener("DOMContentLoaded",function(){
     });
   }
 
-  /* Initialisation textes */
+  /* Initialisation textes + thème jour */
   setLangTexts();
-  setTheme(localStorage.getItem('dcmap_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+  setTheme();
 });
 </script>
 
@@ -2052,6 +2041,5 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 </script>
-
 </body>
 </html>
