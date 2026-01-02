@@ -762,7 +762,7 @@
         </div>
       </section>
 
-      <!-- 2. Synthèse & KPIs (REMONTÉ AVANT FILTRES) -->
+      <!-- 2. Synthèse & KPIs -->
       <section class="acc-section open">
         <button class="acc-header">
           <div class="acc-header-main">
@@ -809,7 +809,7 @@
         </div>
       </section>
 
-      <!-- 3. Filtres & fournisseur (DESCENDU APRÈS SYNTHÈSE) -->
+      <!-- 3. Filtres & fournisseur -->
       <section class="acc-section open">
         <button class="acc-header">
           <div class="acc-header-main">
@@ -1134,23 +1134,27 @@ document.addEventListener("DOMContentLoaded",function(){
   const map=L.map('map',{zoomControl:true}).setView([20,0],2);
   window.map = map;
 
-  /* Fond de carte jour, coloré */
+  /* Fond de carte plus coloré : OpenStreetMap standard */
   const lightTiles = L.tileLayer(
     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     {attribution:'&copy; OpenStreetMap contributors'}
+  );
+  const darkTiles  = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    {attribution:'&copy; OpenStreetMap &copy; CARTO'}
   );
   lightTiles.addTo(map);
 
   const cluster=L.markerClusterGroup({
     showCoverageOnHover:false,
-    zoomToBoundsOnClick:false,
+    zoomToBoundsOnClick:true,      // → zoom sur la zone au clic
     spiderfyOnMaxZoom:true,
     disableClusteringAtZoom:18,
     maxClusterRadius:50,
     animate:true,
     animateAddingMarkers:true
   }).addTo(map);
-  cluster.on('clusterclick',a=>a.layer.spiderfy());
+  // plus de handler clusterclick custom : on laisse le zoom natif
 
   const routeGroup=L.layerGroup().addTo(map);
   let routeLine=null,startMarker=null,endMarker=null,praCircle=null;
@@ -1232,9 +1236,6 @@ document.addEventListener("DOMContentLoaded",function(){
   const spSubtitle=document.getElementById('spSubtitle');
   const spOpenLabel=document.getElementById('spOpenLabel');
   const spPill=document.getElementById('spPill');
-
-  const debugSectionTitle=document.getElementById('debugPanelTitle');
-  const debugPillLabel=document.getElementById('debugPill');
 
   const K={
     total:document.getElementById('k_total'),
@@ -1566,6 +1567,21 @@ document.addEventListener("DOMContentLoaded",function(){
     langSeg.setAttribute('data-on', LANG==='en' ? 'right' : 'left');
     praModeSeg.setAttribute('data-on', (localStorage.getItem('dcmap_pra_mode')||'max')==='min'?'right':'left');
 
+    /* Mise à jour des options par défaut dans les selects (placeholders traduits) */
+    if(siteDropdown.options.length>0){
+      siteDropdown.options[0].textContent = T().select_site;
+    }
+    if(supplierFilter.options.length>0){
+      supplierFilter.options[0].textContent = T().all_suppliers;
+    }
+    if(regionFilter.options.length>0){
+      regionFilter.options[0].textContent = T().all_regions;
+    }
+    if(countryFilter.options.length>0){
+      countryFilter.options[0].textContent = T().all_countries;
+    }
+
+    /* Réactualiser les textes dérivés */
     summarize(currentSubset);
   }
 
@@ -1575,15 +1591,21 @@ document.addEventListener("DOMContentLoaded",function(){
     setLangTexts();
   });
 
-  /* Forcer thème jour (pas de mode nuit) */
-  function setTheme(){
+  function setTheme(mode){
     const root=document.documentElement;
-    root.classList.remove('dark');
-    themeSeg.setAttribute('data-on','left');
-    localStorage.setItem('dcmap_theme','light');
-    logDebug('Thème "light" forcé (pas de mode nuit / carte jour).');
+    if(mode==='dark'){
+      root.classList.add('dark'); themeSeg.setAttribute('data-on','right'); localStorage.setItem('dcmap_theme','dark');
+      map.removeLayer(lightTiles); darkTiles.addTo(map);
+      logDebug('Thème "dark" activé (technique, même si le switch est caché).');
+    }else{
+      root.classList.remove('dark'); themeSeg.setAttribute('data-on','left'); localStorage.setItem('dcmap_theme','light');
+      map.removeLayer(darkTiles); lightTiles.addTo(map);
+      logDebug('Thème "light" activé.');
+    }
   }
-  themeSeg.addEventListener('click', ()=>{ setTheme(); });
+  themeSeg.addEventListener('click', ()=>{
+    const isDark=!document.documentElement.classList.contains('dark'); setTheme(isDark?'dark':'light');
+  });
 
   /* PRA mode toggle */
   function getPraMode(){ return (praModeSeg.getAttribute('data-on')==='right')?'min':'max'; }
@@ -1877,7 +1899,7 @@ document.addEventListener("DOMContentLoaded",function(){
       logDebug(`Répartition : OPEN=${DATA_OPEN.length}, FROZEN=${DATA_FROZEN.length}, CLOSED=${DATA_CLOSED.length}.`);
 
       setLangTexts();
-      setTheme();
+      setTheme(localStorage.getItem('dcmap_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
       const savedPra = parseFloat(localStorage.getItem('dcmap_pra_km')); if(Number.isFinite(savedPra)) praKmInput.value = savedPra;
       const savedMode = localStorage.getItem('dcmap_pra_mode')||'max'; praModeSeg.setAttribute('data-on', savedMode==='min'?'right':'left');
 
@@ -2010,9 +2032,9 @@ document.addEventListener("DOMContentLoaded",function(){
     });
   }
 
-  /* Initialisation textes + thème jour */
+  /* Initialisation textes */
   setLangTexts();
-  setTheme();
+  setTheme(localStorage.getItem('dcmap_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
 });
 </script>
 
