@@ -1,0 +1,2057 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>DC Map - Orange Business</title>
+
+  <!-- Leaflet & MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.Default.css">
+
+  <style>
+    :root{
+      /* Palette inspirée Orange Business */
+      --brand:#FF7900;
+      --brand-soft:#FFE5CF;
+      --bg:#F9FAFB;           /* blanc cassé */
+      --ink:#111827;
+      --muted:#6B7280;
+      --card-bg:#FFFFFF;
+      --border:#E5E7EB;
+      --border-soft:#F3F4F6;
+      --shadow-lg:0 18px 45px rgba(15,23,42,.08);
+      --shadow-md:0 10px 30px rgba(15,23,42,.06);
+      --shadow-sm:0 4px 12px rgba(15,23,42,.06);
+
+      --green:#16A34A;
+      --gray:#9AA3B2;
+      --red:#DC2626;
+
+      --distBg:#F9FAFB;
+    }
+
+    *{box-sizing:border-box;}
+
+    html,body{
+      margin:0;
+      padding:0;
+      background:var(--bg);
+      color:var(--ink);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    }
+
+    a{color:var(--brand);text-decoration:none;}
+    a:hover{text-decoration:underline;}
+
+    /* ===== Header (bandeau noir fixe) ===== */
+    .ob-header{
+      position:fixed;
+      top:0;
+      left:0;
+      right:0;
+      z-index:9999;
+      background:#111827;
+      color:#F9FAFB;
+      box-shadow:var(--shadow-lg);
+    }
+    .ob-header-inner{
+      max-width:1440px;
+      margin:0 auto;
+      padding:10px 24px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:24px;
+    }
+    .ob-header-left{
+      display:flex;
+      align-items:center;
+      gap:18px;
+      min-width:0;
+    }
+    .ob-header-right{
+      display:flex;
+      align-items:center;
+      gap:16px;
+    }
+
+    .ob-logo{
+      height:40px;
+      width:auto;
+      object-fit:contain;
+      display:block;
+    }
+    .ob-title-block h1{
+      margin:0;
+      font-size:20px;
+      font-weight:700;
+      letter-spacing:0.01em;
+      color:#F9FAFB;
+    }
+    .ob-title-block p{
+      margin:4px 0 0;
+      font-size:13px;
+      color:#E5E7EB;
+    }
+
+    /* ===== Layout global ===== */
+    .page-shell{
+      max-width:1440px;
+      margin:0 auto;
+      padding:96px 24px 32px; /* top padding pour ne pas masquer sous le header fixe */
+    }
+
+    /* Toggle FR / EN */
+    .seg{
+      position:relative;
+      display:inline-grid;
+      grid-template-columns:1fr 1fr;
+      align-items:center;
+      background:#F3F4F6;
+      border:1px solid #D1D5DB;
+      border-radius:999px;
+      min-width:120px;
+      height:32px;
+      cursor:pointer;
+      user-select:none;
+      padding:0;
+    }
+    .seg>span{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:600;
+      font-size:11px;
+      padding:0 10px;
+      color:#111827;
+    }
+    .seg .knob{
+      position:absolute;
+      top:2px;
+      left:2px;
+      width:calc(50% - 4px);
+      height:28px;
+      border-radius:999px;
+      background:#FFFFFF;
+      box-shadow:0 2px 6px rgba(15,23,42,.15);
+      transition:transform .22s cubic-bezier(.22,.61,.36,1);
+    }
+    .seg[data-on="right"] .knob{
+      transform:translateX(100%);
+    }
+
+    /* ThemeSeg caché (pas de mode nuit dans l’UI) */
+    #themeSeg{
+      display:none;
+    }
+
+    /* ===== Layout 2 colonnes ===== */
+    .layout-main{
+      margin-top:20px;
+      display:grid;
+      grid-template-columns:1.6fr 1.4fr; /* carte légèrement plus large que les panneaux */
+      gap:18px;
+    }
+    @media (max-width:1024px){
+      .layout-main{
+        grid-template-columns:1fr;
+      }
+    }
+
+    /* ===== Cartes génériques ===== */
+    .card{
+      background:var(--card-bg);
+      border-radius:18px;
+      border:1px solid var(--border-soft);
+      box-shadow:var(--shadow-md);
+      overflow:hidden;
+    }
+
+    /* Sous–encarts (FILTRES D’AFFICHAGE, SYNTHÈSE, etc.) */
+    .card-h{
+      padding:6px 12px;
+      font-weight:600;
+      font-size:11px;
+      letter-spacing:0.05em;
+      text-transform:uppercase;
+      color:#7C2D12;
+      background:#FFFBEB;
+      border-bottom:1px solid #FDE68A;
+    }
+    .card-slim .card-h{
+      font-size:10px;
+      padding:5px 11px;
+    }
+    .card-b{
+      padding:14px 16px 16px;
+      font-size:13px;
+      background:#FFFFFF;
+    }
+
+    /* ===== Carte Leaflet à gauche ===== */
+    .map-card{
+      height:auto;
+      display:flex;
+      flex-direction:column;
+    }
+    .map-wrapper{
+      position:relative;
+      height:420px;
+      min-height:320px;
+    }
+    #map{
+      width:100%;
+      height:100%;
+    }
+    .map-wrapper .leaflet-top,
+    .map-wrapper .leaflet-bottom{
+      margin:10px;
+    }
+
+    /* ===== Panneaux à droite ===== */
+    .side-panel{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .acc-section{
+      border-radius:18px;
+      box-shadow:var(--shadow-sm);
+      background:var(--card-bg);
+      border:1px solid var(--border-soft);
+      overflow:hidden;
+    }
+
+    /* Entêtes principaux (accordéons) : orange clair, texte foncé et doux */
+    .acc-header{
+      width:100%;
+      border:none;
+      background:#FFF7ED;
+      padding:9px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      cursor:pointer;
+      font-size:13px;
+      font-weight:600;
+      color:#111827;
+      border-bottom:1px solid #FED7AA;
+    }
+    .acc-header-main{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .acc-header-pill{
+      font-size:10px;
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+      color:#FB923C;
+    }
+    .acc-chevron{
+      font-size:12px;
+      transition:transform .2s ease;
+    }
+    .acc-section.open .acc-chevron{
+      transform:rotate(180deg);
+    }
+    .acc-body{
+      max-height:0;
+      overflow:hidden;
+      transition:max-height .22s ease;
+      background:#FFFFFF;
+    }
+    .acc-section.open .acc-body{
+      max-height:800px;
+    }
+    .acc-inner{
+      padding:10px 14px 12px;
+      font-size:13px;
+    }
+
+    label{font-size:12px;color:#4B5563;font-weight:500;}
+
+    select,input[type="search"],input[type="text"],input[type="number"]{
+      width:100%;
+      border-radius:10px;
+      border:1px solid var(--border);
+      padding:7px 10px;
+      font-size:13px;
+      background:#FFFFFF;
+      color:var(--ink);
+    }
+    select:focus,input:focus,button:focus{
+      outline:none;
+      border-color:var(--brand);
+      box-shadow:0 0 0 1px rgba(255,121,0,.35);
+    }
+
+    button{
+      font-family:inherit;
+      font-size:13px;
+    }
+
+    .btn-orange{
+      background:var(--brand);
+      color:#FFFFFF;
+      border-radius:10px;
+      border:none;
+      padding:7px 12px;
+      font-weight:600;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+    }
+    .btn-orange:hover{
+      filter:brightness(0.97);
+    }
+
+    .btn-ghost{
+      background:#FFFFFF;
+      border-radius:10px;
+      border:1px solid var(--border);
+      padding:7px 11px;
+      font-weight:500;
+      color:#374151;
+      cursor:pointer;
+    }
+    .btn-black{
+      background:#111827;
+      color:#FFFFFF;
+      border-radius:10px;
+      border:none;
+      padding:7px 12px;
+      font-weight:600;
+      cursor:pointer;
+    }
+
+    .row-inline{
+      display:flex;
+      gap:8px;
+      align-items:flex-end;
+      flex-wrap:wrap;
+    }
+    .row-inline > .field{
+      flex:1 1 0;
+      min-width:0;
+    }
+
+    .small-note{
+      font-size:11px;
+      color:var(--muted);
+    }
+
+    /* Boutons vue Open/Frozen/Closed */
+    .view-buttons{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-top:8px;
+    }
+    .view-btn{
+      flex:1 1 0;
+      min-width:0;
+      padding:6px 8px;
+      border-radius:10px;
+      border-width:1px;
+      border-style:solid;
+      font-size:11px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .view-open{
+      background:#ECFDF3;
+      border-color:#A7F3D0;
+      color:#166534;
+    }
+    .view-frozen{
+      background:#EFF6FF;
+      border-color:#BFDBFE;
+      color:#1D4ED8;
+    }
+    .view-closed{
+      background:#FEF2F2;
+      border-color:#FECACA;
+      color:#B91C1C;
+    }
+
+    .warn-box{
+      margin-top:8px;
+      border-radius:12px;
+      border:1px dashed #FDBA74;
+      background:#FFFBEB;
+      padding:8px 10px;
+      font-size:11px;
+      color:#7C2D12;
+      display:flex;
+      align-items:flex-start;
+      gap:6px;
+    }
+
+    /* Filtres & fournisseur */
+    .filters-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:4px;
+    }
+    .filters-row .field{
+      flex:1 1 0;
+      min-width:120px;
+    }
+
+    .supplier-header{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-top:10px;
+    }
+    #supLogo{
+      height:32px;
+      max-width:120px;
+      object-fit:contain;
+      border-radius:4px;
+      background:#FFFFFF;
+      display:none;
+    }
+    #supName{
+      font-weight:700;
+      font-size:13px;
+    }
+    #supStats{
+      font-size:11px;
+      color:var(--muted);
+    }
+
+    .export-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-top:10px;
+    }
+
+    /* Distance / PRA */
+    .distance-card{
+      background:var(--distBg);
+      border-radius:14px;
+      border:1px solid var(--border-soft);
+      padding:10px 10px 8px;
+      margin-top:4px;
+    }
+    .distance-card .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:flex-end;
+    }
+    .distance-card .field-grow{
+      flex:1 1 0;
+      min-width:180px;
+    }
+
+    .pra-wrap{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-top:4px;
+    }
+    .pra-ind{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      height:28px;
+      padding:0 12px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:700;
+      border:1px solid transparent;
+      white-space:nowrap;
+    }
+    .pra-ind.ok{
+      background:#ECFDF3;
+      border-color:#BBF7D0;
+      color:#166534;
+    }
+    .pra-ind.nok{
+      background:#FEF2F2;
+      border-color:#FECACA;
+      color:#B91C1C;
+    }
+    .seg-mini{
+      min-width:150px;
+      max-width:180px;
+    }
+
+    /* KPI & listes */
+    .kpi-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+      gap:10px;
+      margin-bottom:8px;
+    }
+    .kpi{
+      background:#F9FAFB;
+      border-radius:12px;
+      border:1px solid var(--border-soft);
+      padding:8px 10px;
+    }
+    .kpi .label{
+      font-size:11px;
+      color:var(--muted);
+      margin-bottom:4px;
+    }
+    .kpi .value{
+      font-size:20px;
+      font-weight:700;
+    }
+    .list{
+      margin-top:10px;
+    }
+    .list strong{
+      font-size:12px;
+      color:#4B5563;
+    }
+    .list .item{
+      margin:4px 0;
+    }
+    .list .top{
+      display:flex;
+      justify-content:space-between;
+      font-size:12px;
+    }
+    .bar{
+      height:6px;
+      border-radius:4px;
+      background:#F3F4F6;
+      overflow:hidden;
+      margin-top:2px;
+    }
+    .bar>i{
+      display:block;
+      height:100%;
+      background:var(--brand);
+      width:0%;
+    }
+
+    /* Pins carte */
+    .pin{
+      width:14px;
+      height:14px;
+      border-radius:50%;
+      border:2px solid #fff;
+      box-shadow:0 0 0 1px rgba(0,0,0,.25);
+    }
+    .pin.green{background:var(--green);}
+    .pin.gray{background:var(--gray);}
+    .pin.red{background:var(--red);}
+
+    /* Suggestions adresse */
+    #addrSuggest{
+      margin-top:4px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:#FFFFFF;
+      max-height:180px;
+      overflow:auto;
+      box-shadow:var(--shadow-sm);
+      font-size:12px;
+    }
+    #addrSuggest .item{
+      padding:6px 8px;
+      cursor:pointer;
+    }
+    #addrSuggest .item:hover{
+      background:#F3F4F6;
+    }
+
+    /* SharePoint / ressources */
+    .sp-link{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 12px;
+      border-radius:12px;
+      background:linear-gradient(135deg,#FFF7ED,#FFEDD5);
+      border:1px solid #FED7AA;
+      text-decoration:none;
+      color:#7C2D12;
+      font-size:13px;
+    }
+    .sp-pill{
+      background:var(--brand);
+      color:#FFFFFF;
+      border-radius:999px;
+      padding:2px 9px;
+      font-size:10px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.05em;
+    }
+
+    /* Footer */
+    footer{
+      margin-top:20px;
+      font-size:11px;
+      color:var(--muted);
+      text-align:right;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== HEADER FIXE ===== -->
+<header class="ob-header">
+  <div class="ob-header-inner">
+    <div class="ob-header-left">
+      <a href="https://orange0.sharepoint.com/sites/OBDCProximityServicesFieldOperationsRules"
+         target="_blank" rel="noopener">
+        <img src="https://semarchy.com/wp-content/smush-webp/2025/06/Orange_Business.png.webp"
+             alt="Orange Business" class="ob-logo"
+             onerror="this.style.display='none'">
+      </a>
+      <div class="ob-title-block">
+        <h1>DC Map – Orange Business</h1>
+        <p id="headerSubtitle">Catalogue Data Centers GDO / Proximity & calcul de distance client–DC</p>
+      </div>
+    </div>
+    <div class="ob-header-right">
+      <!-- Toggle Langue (FR / EN) -->
+      <div class="seg" id="langSeg" data-on="left" aria-label="FR / EN">
+        <div class="knob"></div>
+        <span>FR</span><span>EN</span>
+      </div>
+      <!-- ThemeSeg caché (pour compat JS, pas visible) -->
+      <div class="seg" id="themeSeg" data-on="left" aria-hidden="true" style="display:none">
+        <div class="knob"></div>
+        <span>☀️</span><span>🌙</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="page-shell">
+  <!-- ===== LAYOUT PRINCIPAL 2 COLONNES ===== -->
+  <main class="layout-main">
+    <!-- Colonne gauche : carte + Distance/PRA -->
+    <section>
+      <div class="card map-card">
+        <div class="card-h" id="mapHeader">Carte des Data Centers</div>
+        <div class="card-b" style="padding:0;">
+          <div class="map-wrapper">
+            <div id="map"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Distance & PRA sous la carte -->
+      <div style="margin-top:14px;">
+        <div class="card card-slim">
+          <div class="card-h" id="routeHeader">Distance Client — DC</div>
+          <div class="card-b">
+            <div class="distance-card">
+              <div class="row">
+                <!-- Adresse client -->
+                <div class="field-grow">
+                  <label id="clientAddrLabel" for="clientAddress">Adresse du client</label>
+                  <div class="row-inline" style="margin-top:2px;">
+                    <div class="field">
+                      <input id="clientAddress" type="text" placeholder="Commencez à saisir une adresse">
+                    </div>
+                    <div style="flex:0 0 auto;">
+                      <button id="useMyLoc" class="btn-ghost" title="Utiliser ma position">📍</button>
+                    </div>
+                  </div>
+                  <div id="addrSuggest" class="suggestions" style="display:none"></div>
+                </div>
+
+                <!-- DC choisi -->
+                <div class="field-grow">
+                  <label id="dcPickLabel" for="dcPicker2">Datacenter choisi</label>
+                  <input id="dcPicker2" list="dcList2" type="text"
+                         placeholder="Tapez un nom de DC ou un code Orange">
+                  <datalist id="dcList2"></datalist>
+                </div>
+              </div>
+
+              <div class="row" style="margin-top:8px;">
+                <!-- PRA -->
+                <div class="field-grow">
+                  <label id="praLabel" for="praKm">PRA</label>
+                  <div class="pra-wrap">
+                    <div class="seg seg-mini" id="praModeSeg" data-on="left"
+                         title="Au maximum / Au minimum">
+                      <div class="knob"></div>
+                      <span id="praModeMaxLabel">Au max</span><span id="praModeMinLabel">Au min</span>
+                    </div>
+                    <input id="praKm" type="number" min="1" step="1" value="100"
+                           style="width:90px;">
+                    <span id="praStatus" class="pra-ind" title="Statut PRA">—</span>
+                  </div>
+                  <div class="small-note" id="praHint" style="margin-top:4px;">
+                    Règle : distance ≤ / ≥ au seuil (selon le mode)
+                  </div>
+                </div>
+
+                <!-- Actions -->
+                <div style="flex:0 0 auto;display:flex;gap:6px;align-items:flex-end;">
+                  <button id="routeBtn" class="btn-orange">Calculer</button>
+                  <button id="routeClear" class="btn-ghost">Réinitialiser</button>
+                </div>
+              </div>
+
+              <div style="margin-top:6px;">
+                <div id="routeStats" class="small-note"></div>
+                <div id="routeDisclaimer" class="small-note" style="margin-top:4px;display:none"></div>
+                <div id="geoNote" class="small-note" style="margin-top:4px;display:none"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Colonne droite : panneaux repliables -->
+    <section class="side-panel">
+
+      <!-- 1. Catalogue & navigation -->
+      <section class="acc-section open">
+        <button class="acc-header">
+          <div class="acc-header-main">
+            <span id="catTitle">Catalogue & navigation</span>
+            <span class="acc-header-pill" id="catPill">Sélection / recherche DC</span>
+          </div>
+          <span class="acc-chevron">▾</span>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <div class="row-inline">
+              <div class="field" style="min-width:160px;">
+                <label id="siteLabel" for="siteDropdown">Sélectionner le DataCenter à consulter :</label>
+                <select id="siteDropdown">
+                  <option value="">Sélectionner un site</option>
+                </select>
+              </div>
+              <div style="flex:0 0 auto;">
+                <button id="resetButton" class="btn-ghost">Réinitialiser</button>
+              </div>
+            </div>
+
+            <div style="margin-top:8px;">
+              <label id="searchLabel" for="searchInput" style="display:block;">Recherche plein texte</label>
+              <input id="searchInput" type="search"
+                     placeholder="Rechercher un DC (nom, fournisseur, pays…)"
+                     aria-label="Rechercher des data centers">
+            </div>
+
+            <div class="view-buttons">
+              <button id="btnViewOpen"   class="view-btn view-open">Open (Major/Opportunistic)</button>
+              <button id="btnViewFrozen" class="view-btn view-frozen">Frozen (Operations)</button>
+              <button id="btnViewClosed" class="view-btn view-closed">Closed (Operations)</button>
+            </div>
+
+            <div class="warn-box" id="internalWarn" style="margin-top:10px;">
+              ⚠️ <div>Information interne uniquement — Les Data Centers marqués comme Frozen ou Fermés ne peuvent pas être proposés aux clients.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Filtres & fournisseur -->
+      <section class="acc-section open">
+        <button class="acc-header">
+          <div class="acc-header-main">
+            <span id="filtersPanelTitle">Filtres & fournisseur</span>
+            <span class="acc-header-pill" id="filtersPill">Affinage catalogue</span>
+          </div>
+          <span class="acc-chevron">▾</span>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <div class="card card-slim" style="box-shadow:none;border:none;padding:0;background:transparent;">
+              <div class="card-h" id="filtersHeader">Filtres d'affichage</div>
+              <div class="card-b">
+
+                <div class="filters-row">
+                  <div class="field">
+                    <label id="labelSupplier" for="supplierFilter">Afficher par fournisseur</label>
+                    <select id="supplierFilter">
+                      <option value="">Tous les fournisseurs</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label id="labelRegion" for="regionFilter">Afficher par région</label>
+                    <select id="regionFilter">
+                      <option value="">Toutes les régions</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label id="labelCountry" for="countryFilter">Afficher par pays</label>
+                    <select id="countryFilter">
+                      <option value="">Tous les pays</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="export-row">
+                  <button id="exportBtn" class="btn-black"
+                          title="Faire un extract (.xlsx) de ma sélection">
+                    Faire un extract (.xlsx) de ma sélection
+                  </button>
+                  <span class="small-note" id="noteText">
+                    NB : pour la liste complète des DC proposés, retirez tous les filtres avant l’export.
+                  </span>
+                </div>
+
+                <div class="supplier-header">
+                  <img id="supLogo" alt="">
+                  <div>
+                    <div id="supName">Tous les fournisseurs</div>
+                    <div id="supLink"></div>
+                    <div><small id="supStats"></small></div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Synthèse & KPIs -->
+      <section class="acc-section open">
+        <button class="acc-header">
+          <div class="acc-header-main">
+            <span id="synthPanelTitle">Synthèse & KPIs</span>
+            <span class="acc-header-pill" id="synthPill">Vue agrégée</span>
+          </div>
+          <span class="acc-chevron">▾</span>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <div class="card card-slim" style="box-shadow:none;border:none;padding:0;background:transparent;">
+              <div class="card-h" id="synthesisHeader">Synthèse</div>
+              <div class="card-b">
+                <div class="kpi-grid">
+                  <div class="kpi">
+                    <div class="label"><span id="kpi_dc_label">DC affichés</span></div>
+                    <div id="k_total" class="value">—</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="label"><span id="kpi_suppliers_label">Fournisseurs</span></div>
+                    <div id="k_suppliers" class="value">—</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="label"><span id="kpi_countries_label">Pays</span></div>
+                    <div id="k_countries" class="value">—</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="label"><span id="kpi_types_label">Majeur / Opportuniste</span></div>
+                    <div id="k_types" class="value">—</div>
+                  </div>
+                </div>
+
+                <div class="list">
+                  <strong id="topCountriesTitle">Top pays</strong>
+                  <div id="listCountries"></div>
+                </div>
+                <div class="list">
+                  <strong id="topSuppliersTitle">Top fournisseurs</strong>
+                  <div id="listSuppliers"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Liens & ressources -->
+      <section class="acc-section">
+        <button class="acc-header">
+          <div class="acc-header-main">
+            <span id="linksPanelTitle">Liens & ressources</span>
+            <span class="acc-header-pill" id="linksPill">Référentiels</span>
+          </div>
+          <span class="acc-chevron">▾</span>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <a id="spLink"
+               class="sp-link"
+               href="https://orange0.sharepoint.com/sites/OBDCProximityServicesFieldOperationsRules"
+               target="_blank" rel="noopener">
+              <div style="display:flex;flex-direction:column;gap:4px;">
+                <div id="spTitle" style="font-weight:700;">DataCenter Proximity</div>
+                <span class="small-note" id="spSubtitle">
+                  Base documentaire opérationnelle (processus, fiches sites…)
+                </span>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                <span class="sp-pill" id="spPill">SharePoint</span>
+                <span style="font-size:11px;" id="spOpenLabel">Ouvrir ↗</span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Console de debug -->
+      <section class="acc-section open" id="debugSection">
+        <button class="acc-header">
+          <div class="acc-header-main">
+            <span id="debugPanelTitle">Console debug</span>
+            <span class="acc-header-pill" id="debugPill">Chargement Excel & erreurs</span>
+          </div>
+          <span class="acc-chevron">▾</span>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <pre id="debugOutput"
+                 style="max-height:140px;overflow:auto;background:#020617;color:#E5E7EB;border-radius:10px;padding:8px 10px;font-size:11px;white-space:pre-wrap;margin:0;"></pre>
+          </div>
+        </div>
+      </section>
+
+    </section>
+  </main>
+
+  <footer>
+    © 2025 — DC Team | GDO • DC Map v1.6.x
+  </footer>
+</div>
+
+<!-- Librairies JS -->
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/leaflet.markercluster.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded",function(){
+  const EXCEL_URL = './GDO_DataCenter_List.xlsx';
+  const url = EXCEL_URL + '?v=' + Date.now();
+
+  /* ===== Console debug UI ===== */
+  const debugEl = document.getElementById('debugOutput');
+  function logDebug(msg){
+    const ts = new Date().toISOString();
+    if(debugEl){
+      debugEl.textContent += '[' + ts + '] ' + msg + '\n';
+      debugEl.scrollTop = debugEl.scrollHeight;
+    }
+    console.log('[DCMAP]', msg);
+  }
+  logDebug('Initialisation de DC Map…');
+  logDebug('URL Excel : ' + url + ' (EXCEL_URL = ' + EXCEL_URL + ')');
+  if(location.protocol === 'file:'){
+    logDebug('ATTENTION : le fichier est ouvert en file://. Les navigateurs bloquent souvent les requêtes vers GDO_DataCenter_List.xlsx dans ce mode. Utilisez un petit serveur HTTP (ex : "python -m http.server").');
+  }
+
+  /* === i18n (FR par défaut) === */
+  const i18n={
+    fr:{
+      headerSubtitle:"Catalogue Data Centers GDO / Proximity & calcul de distance client–DC",
+      mapHeader:"Carte des Data Centers",
+
+      catTitle:"Catalogue & navigation",
+      catPill:"Sélection / recherche DC",
+      filtersPanelTitle:"Filtres & fournisseur",
+      filtersPill:"Affinage catalogue",
+      synthPanelTitle:"Synthèse & KPIs",
+      synthPill:"Vue agrégée",
+      linksPanelTitle:"Liens & ressources",
+      linksPill:"Référentiels",
+      debugPanelTitle:"Console debug",
+      debugPill:"Chargement Excel & erreurs",
+
+      siteLabel:"Sélectionner le DataCenter à consulter :",
+      select_site:"Sélectionner un site",
+      reset:"Réinitialiser",
+
+      search_label:"Recherche plein texte",
+      search_ph:"Rechercher un DC (nom, fournisseur, pays…)",
+
+      filtersHeader:"Filtres d'affichage",
+      supplierFilter:"Afficher par fournisseur",
+      countryFilter:"Afficher par pays",
+      regionFilter:"Afficher par région",
+      all_suppliers:"Tous les fournisseurs",
+      all_countries:"Tous les pays",
+      all_regions:"Toutes les régions",
+
+      exportBtn:"Faire un extract (.xlsx) de ma sélection",
+      note:"NB : pour la liste complète des DC proposés, retirez tous les filtres avant l’export.",
+
+      synthesisHeader:"Synthèse",
+      kpi_dc:"DC affichés",
+      kpi_suppliers:"Fournisseurs",
+      kpi_countries:"Pays",
+      kpi_types_open:"Majeur / Opportuniste",
+      kpi_types_status:"Statut",
+
+      topCountriesTitle:"Top pays",
+      topSuppliersTitle:"Top fournisseurs",
+
+      supplier_detail_all:"Tous les fournisseurs",
+      supplier_visit:"Visiter le site",
+
+      viewOpen:"Open (Major/Opportunistic)",
+      viewClosed:"Closed (Operations)",
+      viewFrozen:"Frozen (Operations)",
+
+      internalWarn:"⚠️ Information interne uniquement — Les Data Centers marqués comme Frozen ou Fermés ne peuvent pas être proposés aux clients. Ces informations sont destinées exclusivement aux opérations internes et aux démarches d’urgence liées aux sites concernés.",
+
+      mapHeaderCard:"Carte des Data Centers",
+      routeHeader:"Distance Client — DC",
+      clientAddrLabel:"Adresse du client",
+      clientAddrPlaceholder:"Commencez à saisir une adresse",
+      useMyLocTitle:"Utiliser ma position",
+      dcPickLabel:"Datacenter choisi",
+      dcPickPlaceholder:"Tapez un nom de DC ou un code Orange",
+
+      praLabel:"PRA",
+      praModeMaxLabel:"Au max",
+      praModeMinLabel:"Au min",
+      praHint:"Règle : distance ≤ / ≥ au seuil (selon le mode)",
+
+      routeCalculate:"Calculer",
+      routeClear:"Réinitialiser",
+      routeDisclaimer:"Itinéraire indicatif (OSRM) — géocodage Nominatim.",
+      estimateMsg:"Service de routage indisponible — estimation (ligne droite ×1,25).",
+
+      pra_ok:"OK",
+      pra_nok:"NOK",
+      pra_max:"Au maximum à",
+      pra_min:"Au minimum à",
+
+      geo_https:"La géolocalisation nécessite un contexte sécurisé (HTTPS ou http://localhost).",
+      geo_perm:"Permission de localisation refusée.",
+      geo_timeout:"Délai dépassé pour la localisation.",
+      geo_unavail:"Localisation indisponible.",
+
+      spTitle:"DataCenter Proximity",
+      spSubtitle:"Base documentaire opérationnelle (processus, fiches sites…)",
+      spOpenLabel:"Ouvrir ↗",
+
+      debugTitle:"Console debug",
+      debugPillText:"Chargement Excel & erreurs"
+    },
+    en:{
+      headerSubtitle:"GDO / Proximity data center catalog & client–DC distance calculation",
+      mapHeader:"Data Center map",
+
+      catTitle:"Catalog & navigation",
+      catPill:"DC selection / search",
+      filtersPanelTitle:"Filters & provider",
+      filtersPill:"Catalog refinement",
+      synthPanelTitle:"Summary & KPIs",
+      synthPill:"Aggregated view",
+      linksPanelTitle:"Links & resources",
+      linksPill:"Reference docs",
+      debugPanelTitle:"Debug console",
+      debugPill:"Excel loading & errors",
+
+      siteLabel:"Select the data center to view:",
+      select_site:"Select a site",
+      reset:"Reset",
+
+      search_label:"Full-text search",
+      search_ph:"Search DCs (name, supplier, country…)",
+
+      filtersHeader:"Display filters",
+      supplierFilter:"Filter by supplier",
+      countryFilter:"Filter by country",
+      regionFilter:"Filter by region",
+      all_suppliers:"All suppliers",
+      all_countries:"All countries",
+      all_regions:"All regions",
+
+      exportBtn:"Export selection (.xlsx)",
+      note:"Note: to export the full list of proposed DCs, remove all filters first.",
+
+      synthesisHeader:"Summary",
+      kpi_dc:"DC shown",
+      kpi_suppliers:"Suppliers",
+      kpi_countries:"Countries",
+      kpi_types_open:"Major / Opportunistic",
+      kpi_types_status:"Status",
+
+      topCountriesTitle:"Top countries",
+      topSuppliersTitle:"Top suppliers",
+
+      supplier_detail_all:"All suppliers",
+      supplier_visit:"Visit website",
+
+      viewOpen:"Open (Major/Opportunistic)",
+      viewClosed:"Closed (Operations)",
+      viewFrozen:"Frozen (Operations)",
+
+      internalWarn:"⚠️ Internal use only — Data Centers marked as Frozen or Closed cannot be proposed to customers. This information is strictly for internal operations and emergency actions on these sites.",
+
+      mapHeaderCard:"Data Center map",
+      routeHeader:"Client — DC distance",
+      clientAddrLabel:"Client address",
+      clientAddrPlaceholder:"Start typing an address",
+      useMyLocTitle:"Use my location",
+      dcPickLabel:"Chosen data center",
+      dcPickPlaceholder:"Type a DC name or Orange site code",
+
+      praLabel:"BCP",
+      praModeMaxLabel:"At max",
+      praModeMinLabel:"At min",
+      praHint:"Rule: distance ≤ / ≥ threshold (depending on mode)",
+
+      routeCalculate:"Calculate",
+      routeClear:"Clear",
+      routeDisclaimer:"Indicative route (OSRM) — Nominatim geocoding.",
+      estimateMsg:"Routing service unavailable — straight-line ×1.25 estimate.",
+
+      pra_ok:"OK",
+      pra_nok:"NOK",
+      pra_max:"At most",
+      pra_min:"At least",
+
+      geo_https:"Geolocation requires a secure context (HTTPS or http://localhost).",
+      geo_perm:"Location permission denied.",
+      geo_timeout:"Location request timed out.",
+      geo_unavail:"Location unavailable.",
+
+      spTitle:"DataCenter Proximity",
+      spSubtitle:"Operational documentation base (processes, site sheets…)",
+      spOpenLabel:"Open ↗",
+
+      debugTitle:"Debug console",
+      debugPillText:"Excel loading & errors"
+    }
+  };
+  let LANG='fr'; const T=()=>i18n[LANG];
+
+  /* ===== Leaflet ===== */
+  const map=L.map('map',{zoomControl:true}).setView([20,0],2);
+  window.map = map;
+
+  /* Fond de carte plus coloré : OpenStreetMap standard */
+  const lightTiles = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {attribution:'&copy; OpenStreetMap contributors'}
+  );
+  const darkTiles  = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    {attribution:'&copy; OpenStreetMap &copy; CARTO'}
+  );
+  lightTiles.addTo(map);
+
+  const cluster=L.markerClusterGroup({
+    showCoverageOnHover:false,
+    zoomToBoundsOnClick:false,
+    spiderfyOnMaxZoom:true,
+    disableClusteringAtZoom:18,
+    maxClusterRadius:50,
+    animate:true,
+    animateAddingMarkers:true
+  }).addTo(map);
+  cluster.on('clusterclick',a=>a.layer.spiderfy());
+
+  const routeGroup=L.layerGroup().addTo(map);
+  let routeLine=null,startMarker=null,endMarker=null,praCircle=null;
+
+  /* UI refs */
+  const headerSubtitle   = document.getElementById('headerSubtitle');
+  const mapHeader        = document.getElementById('mapHeader');
+
+  const catTitle         = document.getElementById('catTitle');
+  const catPill          = document.getElementById('catPill');
+  const filtersPanelTitle= document.getElementById('filtersPanelTitle');
+  const filtersPill      = document.getElementById('filtersPill');
+  const synthPanelTitle  = document.getElementById('synthPanelTitle');
+  const synthPill        = document.getElementById('synthPill');
+  const linksPanelTitle  = document.getElementById('linksPanelTitle');
+  const linksPill        = document.getElementById('linksPill');
+  const debugPanelTitle  = document.getElementById('debugPanelTitle');
+  const debugPill        = document.getElementById('debugPill');
+
+  const siteLabel=document.getElementById('siteLabel');
+  const siteDropdown=document.getElementById('siteDropdown');
+  const resetButton=document.getElementById('resetButton');
+  const searchLabel=document.getElementById('searchLabel');
+  const searchInput=document.getElementById('searchInput');
+
+  const btnViewOpen=document.getElementById('btnViewOpen');
+  const btnViewFrozen=document.getElementById('btnViewFrozen');
+  const btnViewClosed=document.getElementById('btnViewClosed');
+
+  const langSeg=document.getElementById('langSeg');
+  const themeSeg=document.getElementById('themeSeg');
+
+  const filtersHeader=document.getElementById('filtersHeader');
+  const supplierFilter=document.getElementById('supplierFilter');
+  const countryFilter=document.getElementById('countryFilter');
+  const regionFilter=document.getElementById('regionFilter');
+  const exportBtn=document.getElementById('exportBtn');
+  const noteText=document.getElementById('noteText');
+
+  const kpi_dc_label=document.getElementById('kpi_dc_label');
+  const kpi_sup_label=document.getElementById('kpi_suppliers_label');
+  const kpi_cty_label=document.getElementById('kpi_countries_label');
+  const kpi_typ_label=document.getElementById('kpi_types_label');
+
+  const topCountriesTitle=document.getElementById('topCountriesTitle');
+  const topSuppliersTitle=document.getElementById('topSuppliersTitle');
+
+  const supLogo=document.getElementById('supLogo');
+  const supName=document.getElementById('supName');
+  const supLink=document.getElementById('supLink');
+  const supStats=document.getElementById('supStats');
+
+  const clientAddress=document.getElementById('clientAddress');
+  const addrSuggest=document.getElementById('addrSuggest');
+  const useMyLoc=document.getElementById('useMyLoc');
+  const dcPicker2=document.getElementById('dcPicker2');
+  const dcList2=document.getElementById('dcList2');
+
+  const praKmInput=document.getElementById('praKm');
+  const praStatus=document.getElementById('praStatus');
+  const praModeSeg=document.getElementById('praModeSeg');
+  const praHint=document.getElementById('praHint');
+  const praModeMaxLabel=document.getElementById('praModeMaxLabel');
+  const praModeMinLabel=document.getElementById('praModeMinLabel');
+
+  const clientAddrLabel=document.getElementById('clientAddrLabel');
+  const dcPickLabel=document.getElementById('dcPickLabel');
+
+  const routeHeaderEl=document.getElementById('routeHeader');
+  const routeBtn=document.getElementById('routeBtn');
+  const routeClear=document.getElementById('routeClear');
+  const routeStats=document.getElementById('routeStats');
+  const routeDisclaimer=document.getElementById('routeDisclaimer');
+  const geoNote=document.getElementById('geoNote');
+
+  const internalWarn=document.getElementById('internalWarn');
+
+  const spTitle=document.getElementById('spTitle');
+  const spSubtitle=document.getElementById('spSubtitle');
+  const spOpenLabel=document.getElementById('spOpenLabel');
+  const spPill=document.getElementById('spPill');
+
+  const debugSectionTitle=document.getElementById('debugPanelTitle');
+  const debugPillLabel=document.getElementById('debugPill');
+
+  const K={
+    total:document.getElementById('k_total'),
+    suppliers:document.getElementById('k_suppliers'),
+    countries:document.getElementById('k_countries'),
+    types:document.getElementById('k_types'),
+    listCountries:document.getElementById('listCountries'),
+    listSuppliers:document.getElementById('listSuppliers')
+  };
+
+  /* Data stores */
+  let DATA_OPEN=[],DATA_FROZEN=[],DATA_CLOSED=[];
+  let CURRENT_VIEW='open';
+  const markersByDcName=new Map(), markersByOrangeCode=new Map();
+  let allPoints=[],currentSubset=[],currentDcMap=new Map();
+
+  /* Helpers */
+  const norm=s=>s==null?'':String(s).trim();
+  const num=v=>{const n=parseFloat(String(v).replace(',','.'));return Number.isFinite(n)?n:NaN};
+
+  function iconForView(view){
+    const cls = view==='open' ? 'green' : (view==='frozen' ? 'gray' : 'red');
+    return L.divIcon({className:`pin ${cls}`,iconSize:[14,14],iconAnchor:[7,7],popupAnchor:[0,-8]});
+  }
+
+  const SUPPLIER_DOMAINS={
+    'Equinix':'equinix.com',
+    'Digital Realty':'digitalrealty.com',
+    'Interxion':'interxion.com',
+    'DATA4':'data4group.com',
+    'Telehouse':'telehouse.com',
+    'Global Switch':'globalswitch.com',
+    'NTT':'global.ntt'
+  };
+  const inferredDomain=s=>{
+    if(!s)return'';
+    if(SUPPLIER_DOMAINS[s])return SUPPLIER_DOMAINS[s];
+    const slug=s.toLowerCase().replace(/[^a-z0-9]/g,'');
+    return slug?slug+'.com':'';
+  };
+
+  function renderBars(container,entries,maxItems=8){
+    const top=entries.slice(0,maxItems); const max=top.length?top[0][1]:0;
+    container.innerHTML=top.map(([label,count])=>{
+      const pct=max?Math.round(count*100/max):0;
+      return `<div class="item"><div class="top"><span>${label}</span><span>${count}</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+    }).join('');
+  }
+
+  function summarize(subset){
+    const types=subset.reduce((a,p)=>{const t=norm(p.row['Type of DC']);a[t]=(a[t]||0)+1;return a;},{});
+    const supCounts={},countryCounts={},supSet=new Set(),countrySet=new Set();
+    subset.forEach(p=>{
+      const s=norm(p.supplier)||'—'; supCounts[s]=(supCounts[s]||0)+1; supSet.add(s);
+      const c=norm(p.country)||'—'; countryCounts[c]=(countryCounts[c]||0)+1; countrySet.add(c);
+    });
+    K.total.textContent=subset.length; K.suppliers.textContent=supSet.size; K.countries.textContent=countrySet.size;
+
+    if(CURRENT_VIEW==='open'){
+      kpi_typ_label.textContent=T().kpi_types_open;
+      K.types.textContent=`${types['1 - Major']||0} / ${types['2 - Opportunistic']||0}`;
+    }else if(CURRENT_VIEW==='frozen'){
+      kpi_typ_label.textContent=T().kpi_types_status; K.types.textContent='Frozen';
+    }else{
+      kpi_typ_label.textContent=T().kpi_types_status; K.types.textContent='Closed';
+    }
+
+    renderBars(K.listSuppliers,Object.entries(supCounts).sort((a,b)=>b[1]-a[1]));
+    renderBars(K.listCountries,Object.entries(countryCounts).sort((a,b)=>b[1]-a[1]));
+  }
+
+  function popupHTML(d){
+    const isEN = (LANG === 'en');
+    const LBL = isEN ? {
+      type:'Type of DC', dc:'Data center', code:'Orange Site Code',
+      addr:'Address', city:'City / Country', sp:'SharePoint link', mgr:'DC Manager'
+    } : {
+      type:'Type de DC', dc:'Datacenter', code:'Site Code Orange',
+      addr:'Adresse', city:'Ville / Pays', sp:'Lien SharePoint', mgr:'DC Manager'
+    };
+    const r = d.row || {};
+    const prox = norm(r['Plazza Proximity'] || d.prox || '');
+    const mgr  = norm(r['DC Manager'] || r['Dc Manager'] || '');
+    const linkHtml = prox ? `<b>${LBL.sp} :</b> <a href="${prox}" target="_blank" rel="noopener">Description Page</a><br>` : '';
+
+    return `<div style="max-width:320px">
+      <div style="background:var(--brand);color:#fff;font-weight:700;padding:8px;border-radius:6px 6px 0 0">${d.supplier||'—'}</div>
+      <div style="padding:8px;background:var(--card-bg);border:1px solid var(--border-soft);border-top:none;border-radius:0 0 6px 6px">
+        <b>${LBL.type} :</b> ${d.typeDC||'—'}<br>
+        <b>${LBL.dc} :</b> ${d.dcName||'—'}<br>
+        <b>${LBL.code} :</b> ${d.ocode||'—'}<br>
+        <b>${LBL.addr} :</b> ${d.addr||'—'}<br>
+        <b>${LBL.city} :</b> ${(d.city?d.city+', ':'')+(d.country||'')}<br>
+        ${linkHtml}
+        ${mgr ? `<b>${LBL.mgr} :</b> ${mgr}` : ``}
+      </div>
+    </div>`;
+  }
+
+  function rebuildFiltersOptionsFrom(subset){
+    const suppliers=new Set(), countries=new Set(), regions=new Set();
+    subset.forEach(d=>{
+      if(d.supplier)suppliers.add(d.supplier);
+      if(d.country)countries.add(d.country);
+      if(d.region)regions.add(d.region);
+    });
+
+    const setOptions=(select, firstLabel, values)=>{
+      const cur=select.value;
+      select.innerHTML='';
+      const o0=document.createElement('option');o0.value='';o0.textContent=firstLabel;select.appendChild(o0);
+      Array.from(values).sort((a,b)=>a.localeCompare(b)).forEach(v=>{
+        const o=document.createElement('option'); o.value=v; o.textContent=v; select.appendChild(o);
+      });
+      if(!Array.from(values).includes(cur)) select.value='';
+      else select.value=cur;
+    };
+
+    setOptions(supplierFilter, T().all_suppliers, suppliers);
+    setOptions(regionFilter,   T().all_regions,   regions);
+    setOptions(countryFilter,  T().all_countries, countries);
+  }
+
+  function rebuildSiteDropdown(subset){
+    const seen=new Set();
+    siteDropdown.innerHTML=`<option value="">${T().select_site}</option>`;
+    subset.forEach(p=>{
+      if(p.dcName && !seen.has(p.dcName)){
+        seen.add(p.dcName);
+        const opt=document.createElement('option'); opt.value=p.dcName; opt.textContent=p.dcName;
+        siteDropdown.appendChild(opt);
+      }
+    });
+  }
+
+  function populateDcDatalist(dl){
+    dl.innerHTML='';
+    const seen=new Set(); const seenCode=new Set();
+    allPoints.forEach(p=>{
+      if(p.dcName && !seen.has(p.dcName)){
+        seen.add(p.dcName);
+        const o=document.createElement('option'); o.value=p.dcName; dl.appendChild(o);
+      }
+    });
+    allPoints.forEach(p=>{
+      const c=p.orangeCode;
+      if(c && !seenCode.has(c)){
+        seenCode.add(c);
+        const o=document.createElement('option'); o.value=c; dl.appendChild(o);
+      }
+    });
+  }
+
+  function applyFilters(){
+    const s=supplierFilter.value||'', c=countryFilter.value||'', r=regionFilter.value||'', q=(searchInput.value||'').trim().toLowerCase();
+    currentSubset=allPoints.filter(p=>
+      (s?p.supplier===s:true)&&
+      (c?p.country===c:true)&&
+      (r?p.region===r:true)&&(
+        !q ? true :
+        [p.supplier,p.country,p.region,p.dcName,
+         norm(p.row['Site Code Orange']),norm(p.row['City Area']),
+         norm(p.row['Address']),norm(p.row['Datacenter name (supplier code)'])]
+        .join(' ').toLowerCase().includes(q)
+      )
+    );
+    cluster.clearLayers(); currentSubset.forEach(p=>cluster.addLayer(p.marker));
+    rebuildSiteDropdown(currentSubset); summarize(currentSubset); updateSupplierInfo(s,currentSubset);
+    if(currentSubset.length===1){
+      const m=currentSubset[0].marker; m.openPopup(); map.setView(m.getLatLng(),13);
+    } else if(currentSubset.length>1){
+      const fg=L.featureGroup(currentSubset.map(p=>p.marker)); map.fitBounds(fg.getBounds().pad(0.25));
+    } else {
+      map.setView([20,0],2);
+    }
+    currentDcMap=new Map(); currentSubset.forEach(p=>{
+      if(!currentDcMap.has(p.dcName))currentDcMap.set(p.dcName,[]);
+      currentDcMap.get(p.dcName).push(p.marker);
+    });
+  }
+
+  function updateSupplierInfo(selectedSupplier,subset){
+    if(!selectedSupplier){
+      supLogo.style.display='none';
+      supName.textContent=T().supplier_detail_all;
+      supLink.innerHTML='';
+      supStats.textContent='';
+      return;
+    }
+    const domain=inferredDomain(selectedSupplier);
+    supName.textContent=selectedSupplier;
+    supLink.innerHTML=domain?`<a href="https://${domain}" target="_blank" rel="noopener">${T().supplier_visit}</a>`:'';
+    const count=subset.filter(p=>p.supplier===selectedSupplier).length;
+    if(LANG==='fr'){
+      supStats.textContent=`${count} ${count>1?'data centers affichés':'data center affiché'}`;
+    }else{
+      supStats.textContent=`${count} ${count>1?'data centers shown':'data center shown'}`;
+    }
+    if(domain){
+      supLogo.src=`https://logo.clearbit.com/${domain}`;
+      supLogo.onload=()=>supLogo.style.display='block';
+      supLogo.onerror=()=>supLogo.style.display='none';
+    } else supLogo.style.display='none';
+  }
+
+  function highlightViewButton(){
+    [btnViewOpen,btnViewFrozen,btnViewClosed].forEach(b=>{b.style.outline=''; b.style.boxShadow='';});
+    const b = CURRENT_VIEW==='open'?btnViewOpen : (CURRENT_VIEW==='frozen'?btnViewFrozen:btnViewClosed);
+    b.style.boxShadow='0 0 0 2px rgba(0,0,0,.08), 0 0 0 3px rgba(255,121,0,.5)';
+    kpi_typ_label.textContent=(CURRENT_VIEW==='open')?T().kpi_types_open:T().kpi_types_status;
+    summarize(currentSubset);
+  }
+
+  function rebuildAllPointsFromDATA(){
+    allPoints=[]; markersByDcName.clear(); markersByOrangeCode.clear(); cluster.clearLayers();
+    const ACTIVE = CURRENT_VIEW==='open'?DATA_OPEN : (CURRENT_VIEW==='frozen'?DATA_FROZEN:DATA_CLOSED);
+    const icon = iconForView(CURRENT_VIEW);
+    ACTIVE.forEach(d=>{
+      const marker=L.marker([d.lat,d.lng],{icon}).bindPopup(popupHTML(d));
+      if(d.dcName){
+        if(!markersByDcName.has(d.dcName))markersByDcName.set(d.dcName,[]);
+        markersByDcName.get(d.dcName).push(marker);
+      }
+      if(d.ocode){
+        if(!markersByOrangeCode.has(d.ocode))markersByOrangeCode.set(d.ocode,[]);
+        markersByOrangeCode.get(d.ocode).push(marker);
+      }
+      allPoints.push({marker,supplier:d.supplier,country:d.country,region:d.region,dcName:d.dcName,orangeCode:d.ocode,row:d.row,typeDC:d.typeDC});
+    });
+    rebuildFiltersOptionsFrom(allPoints);
+    applyFilters();
+    populateDcDatalist(dcList2);
+    logDebug('Points reconstruits pour vue "' + CURRENT_VIEW + '" : ' + allPoints.length + ' DC.');
+  }
+
+  function switchView(v){
+    CURRENT_VIEW=v;
+    logDebug('Changement de vue : ' + v);
+    rebuildAllPointsFromDATA();
+    highlightViewButton();
+  }
+
+  btnViewOpen.addEventListener('click',()=>switchView('open'));
+  btnViewFrozen.addEventListener('click',()=>switchView('frozen'));
+  btnViewClosed.addEventListener('click',()=>switchView('closed'));
+
+  [supplierFilter,countryFilter,regionFilter].forEach(sel=>sel.addEventListener('change',applyFilters));
+  searchInput.addEventListener('input',applyFilters);
+  searchInput.addEventListener('change',applyFilters);
+  searchInput.addEventListener('keyup',e=>{ if(e.key==='Enter') applyFilters(); });
+  resetButton.addEventListener('click',()=>{
+    supplierFilter.value='';countryFilter.value='';regionFilter.value='';searchInput.value='';
+    logDebug('Réinitialisation des filtres.');
+    applyFilters();
+  });
+  siteDropdown.addEventListener('change',()=>{
+    const name=siteDropdown.value;
+    if(!name || !currentDcMap.has(name)) return;
+    const list=currentDcMap.get(name);
+    const fg=L.featureGroup(list);
+    map.fitBounds(fg.getBounds().pad(0.25));
+    list[0].openPopup();
+  });
+
+  /* Lang & Theme */
+  function setLangTexts(){
+    headerSubtitle.textContent   = T().headerSubtitle;
+    mapHeader.textContent        = T().mapHeader;
+
+    catTitle.textContent         = T().catTitle;
+    catPill.textContent          = T().catPill;
+    filtersPanelTitle.textContent= T().filtersPanelTitle;
+    filtersPill.textContent      = T().filtersPill;
+    synthPanelTitle.textContent  = T().synthPanelTitle;
+    synthPill.textContent        = T().synthPill;
+    linksPanelTitle.textContent  = T().linksPanelTitle;
+    linksPill.textContent        = T().linksPill;
+    debugPanelTitle.textContent  = T().debugPanelTitle;
+    debugPill.textContent        = T().debugPill;
+
+    siteLabel.textContent        = T().siteLabel;
+    resetButton.textContent      = T().reset;
+    searchLabel.textContent      = T().search_label;
+    searchInput.placeholder      = T().search_ph;
+
+    filtersHeader.textContent    = T().filtersHeader;
+    document.getElementById('labelSupplier').textContent = T().supplierFilter;
+    document.getElementById('labelCountry').textContent  = T().countryFilter;
+    document.getElementById('labelRegion').textContent   = T().regionFilter;
+    exportBtn.textContent        = T().exportBtn;
+    noteText.textContent         = T().note;
+
+    document.getElementById('synthesisHeader').textContent = T().synthesisHeader;
+    kpi_dc_label.textContent    = T().kpi_dc;
+    kpi_sup_label.textContent   = T().kpi_suppliers;
+    kpi_cty_label.textContent   = T().kpi_countries;
+    kpi_typ_label.textContent   = (CURRENT_VIEW==='open')?T().kpi_types_open:T().kpi_types_status;
+
+    topCountriesTitle.textContent = T().topCountriesTitle;
+    topSuppliersTitle.textContent = T().topSuppliersTitle;
+
+    btnViewOpen.textContent    = T().viewOpen;
+    btnViewFrozen.textContent  = T().viewFrozen;
+    btnViewClosed.textContent  = T().viewClosed;
+
+    internalWarn.innerHTML     = T().internalWarn;
+
+    mapHeader.textContent      = T().mapHeaderCard;
+    routeHeaderEl.textContent  = T().routeHeader;
+    clientAddrLabel.textContent= T().clientAddrLabel;
+    clientAddress.placeholder  = T().clientAddrPlaceholder;
+    useMyLoc.title             = T().useMyLocTitle;
+    dcPickLabel.textContent    = T().dcPickLabel;
+    dcPicker2.placeholder      = T().dcPickPlaceholder;
+
+    document.getElementById('praLabel').textContent = T().praLabel;
+    praHint.textContent         = T().praHint;
+    praModeMaxLabel.textContent = T().praModeMaxLabel;
+    praModeMinLabel.textContent = T().praModeMinLabel;
+
+    routeBtn.textContent        = T().routeCalculate;
+    routeClear.textContent      = T().routeClear;
+
+    spTitle.textContent         = T().spTitle;
+    spSubtitle.textContent      = T().spSubtitle;
+    spOpenLabel.textContent     = T().spOpenLabel;
+    spPill.textContent          = 'SharePoint';
+
+    langSeg.setAttribute('data-on', LANG==='en' ? 'right' : 'left');
+    praModeSeg.setAttribute('data-on', (localStorage.getItem('dcmap_pra_mode')||'max')==='min'?'right':'left');
+
+    /* Réactualiser les textes dérivés */
+    summarize(currentSubset);
+  }
+
+  langSeg.addEventListener('click', ()=>{
+    LANG=(LANG==='en')?'fr':'en';
+    logDebug('Changement de langue : ' + LANG);
+    setLangTexts();
+  });
+
+  function setTheme(mode){
+    const root=document.documentElement;
+    if(mode==='dark'){
+      root.classList.add('dark'); themeSeg.setAttribute('data-on','right'); localStorage.setItem('dcmap_theme','dark');
+      map.removeLayer(lightTiles); darkTiles.addTo(map);
+      logDebug('Thème "dark" activé (technique, même si le switch est caché).');
+    }else{
+      root.classList.remove('dark'); themeSeg.setAttribute('data-on','left'); localStorage.setItem('dcmap_theme','light');
+      map.removeLayer(darkTiles); lightTiles.addTo(map);
+      logDebug('Thème "light" activé.');
+    }
+  }
+  themeSeg.addEventListener('click', ()=>{
+    const isDark=!document.documentElement.classList.contains('dark'); setTheme(isDark?'dark':'light');
+  });
+
+  /* PRA mode toggle */
+  function getPraMode(){ return (praModeSeg.getAttribute('data-on')==='right')?'min':'max'; }
+  praModeSeg.addEventListener('click', ()=>{
+    const now = getPraMode()==='max' ? 'min' : 'max';
+    praModeSeg.setAttribute('data-on', now==='min' ? 'right' : 'left');
+    localStorage.setItem('dcmap_pra_mode',now);
+    logDebug('Mode PRA changé : ' + now);
+  });
+
+  /* Geocoding & routing */
+  async function geocodeAddress(q,limit=5){
+    const urlG=`https://nominatim.openstreetmap.org/search?format=json&limit=${limit}&q=${encodeURIComponent(q)}`;
+    const r=await fetch(urlG,{headers:{'Accept':'application/json'}}); if(!r.ok) throw new Error('geocode ' + r.status);
+    const j=await r.json(); return j.map(it=>({lat:parseFloat(it.lat), lon:parseFloat(it.lon), label:it.display_name}));
+  }
+  let addrResults=[], addrTimer=null;
+  clientAddress.addEventListener('input',()=>{
+    clearTimeout(addrTimer);
+    const q=clientAddress.value.trim();
+    if(q.length<3){addrSuggest.style.display='none'; return;}
+    addrTimer=setTimeout(async()=>{
+      try{
+        addrResults=await geocodeAddress(q,7);
+        if(!addrResults.length){addrSuggest.style.display='none';return;}
+        addrSuggest.innerHTML=addrResults.map((r,i)=>`<div class="item" data-i="${i}">${r.label}</div>`).join('');
+        addrSuggest.style.display='block';
+      }catch(e){
+        logDebug('Erreur géocodage Nominatim : ' + e.message);
+        addrSuggest.style.display='none';
+      }
+    },250);
+  });
+  addrSuggest.addEventListener('click',e=>{
+    const item=e.target.closest('.item'); if(!item) return;
+    const i=parseInt(item.dataset.i,10); if(isNaN(i)) return;
+    clientAddress.value=addrResults[i].label; addrSuggest.style.display='none'; calcRoute();
+  });
+  document.addEventListener('click',e=>{ if(!addrSuggest.contains(e.target) && e.target!==clientAddress){addrSuggest.style.display='none';} });
+
+  useMyLoc.addEventListener('click',()=>{
+    geoNote.style.display='none';
+    if(!('geolocation' in navigator)){
+      geoNote.textContent=T().geo_unavail; geoNote.style.display='block';
+      logDebug('Géolocalisation non disponible dans ce navigateur.');
+      return;
+    }
+    const insecure = location.protocol!=='https:' && location.hostname!=='localhost' && location.hostname!=='127.0.0.1';
+    if(insecure){
+      geoNote.textContent=T().geo_https; geoNote.style.display='block';
+      logDebug('Contexte non sécurisé : la géolocalisation peut être bloquée.');
+    }
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const {latitude:lat,longitude:lon}=pos.coords;
+      clientAddress.dataset.lat=lat; clientAddress.dataset.lon=lon;
+      clientAddress.value = (LANG==='fr') ? 'Ma position' : 'My location';
+      logDebug('Position utilisateur : lat=' + lat + ', lon=' + lon);
+      calcRoute();
+    },(err)=>{
+      let msg=T().geo_unavail;
+      if(err.code===1) msg=T().geo_perm;
+      else if(err.code===2) msg=T().geo_unavail;
+      else if(err.code===3) msg=T().geo_timeout;
+      geoNote.textContent=msg; geoNote.style.display='block';
+      logDebug('Erreur géolocalisation : ' + err.message + ' (code ' + err.code + ')');
+    },{enableHighAccuracy:true,timeout:8000,maximumAge:0});
+  });
+
+  async function routeOSRMBase(base,from,to){
+    const coords=`${from.lon},${from.lat};${to.lng},${to.lat}`;
+    const urlR=`${base.replace(/\/$/,'')}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+    const r=await fetch(urlR,{headers:{'Accept':'application/json'}}); if(!r.ok) throw new Error('route ' + r.status);
+    const j=await r.json(); if(j.code!=='Ok'||!j.routes||!j.routes.length) return null;
+    const rt=j.routes[0]; return {distance:rt.distance, duration:rt.duration, geometry:rt.geometry};
+  }
+  async function routeOSRMWithFallback(from,to){
+    try{
+      const a=await routeOSRMBase('https://router.project-osrm.org',from,to);
+      if(a){ logDebug('OSRM public utilisé.'); return a;}
+    }catch(e){logDebug('OSRM public indisponible : ' + e.message);}
+    try{
+      const b=await routeOSRMBase('https://routing.openstreetmap.de/routed-car',from,to);
+      if(b){ logDebug('OSRM OSM.de utilisé.'); return b;}
+    }catch(e){logDebug('OSRM OSM.de indisponible : ' + e.message);}
+    return null;
+  }
+  function haversineMeters(a,b){
+    const R=6371000, toRad=x=>x*Math.PI/180;
+    const dLat=toRad(b.lat-a.lat), dLon=toRad(b.lon-a.lon);
+    const lat1=toRad(a.lat), lat2=toRad(b.lat);
+    const h=Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(h));
+  }
+  function fmtKm(m){ if(m<1000) return `${Math.round(m)} m`; return `${(m/1000).toFixed(1)} km`; }
+  function fmtDur(s){ const h=Math.floor(s/3600), m=Math.round((s%3600)/60); return h?`${h}h${m.toString().padStart(2,'0')}`:`${m} min`; }
+
+  function clearRoute(){
+    routeGroup.clearLayers(); routeLine=startMarker=endMarker=praCircle=null;
+    routeStats.textContent=''; routeDisclaimer.style.display='none';
+    praStatus.textContent='—'; praStatus.className='pra-ind';
+  }
+  function drawCirclePra(center,praKm,ok){
+    praCircle=L.circle([center.lat,center.lon],{radius:praKm*1000,color:ok?'#28a745':'#cc3333',weight:2,fillOpacity:.05,fillColor:ok?'#28a745':'#cc3333'});
+    routeGroup.addLayer(praCircle);
+  }
+  function drawRouteGeoJSON(geom){ routeLine=L.geoJSON(geom,{style:{weight:4,opacity:.9,color:'#ff7900'}}); routeGroup.addLayer(routeLine); }
+  function drawStraightLine(from,to){ routeLine=L.polyline([[from.lat,from.lon],[to.lat,to.lng]],{weight:4,opacity:.9,color:'#777',dashArray:'6 6'}); routeGroup.addLayer(routeLine); }
+  function addEndpoints(from,to){
+    startMarker=L.circleMarker([from.lat,from.lon],{radius:6,weight:2,color:'#2c3e50',fillColor:'#2c3e50',fillOpacity:1});
+    endMarker  =L.circleMarker([to.lat,to.lng],   {radius:6,weight:2,color:'#27ae60',fillColor:'#27ae60',fillOpacity:1});
+    routeGroup.addLayer(startMarker); routeGroup.addLayer(endMarker);
+  }
+
+  function computePraStatus(distKm,praKm,mode){
+    if(!Number.isFinite(distKm)||!Number.isFinite(praKm)) return {ok:false,margin:NaN};
+    if(mode==='max'){ const ok = distKm<=praKm; return {ok, margin:(praKm-distKm)}; }
+    else{ const ok = distKm>=praKm; return {ok, margin:(distKm-praKm)}; }
+  }
+  function setPraUI(ok,marginKm,mode,origin){
+    praStatus.textContent = ok ? T().pra_ok : T().pra_nok;
+    praStatus.className = 'pra-ind ' + (ok?'ok':'nok');
+    const m = Number.isFinite(marginKm) ? marginKm.toFixed(1) : '—';
+    if(LANG==='fr'){
+      praStatus.title = ok
+        ? `Marge ${mode==='max'?'(≤)':'(≥)'} : ${m} km via ${origin}`
+        : `Écart ${mode==='max'?'(>)':'(<)'} : ${m} km via ${origin}`;
+    }else{
+      praStatus.title = ok
+        ? `Margin ${mode==='max'?'(≤)':'(≥)'}: ${m} km via ${origin}`
+        : `Delta ${mode==='max'?'(>)':'(<)'}: ${m} km via ${origin}`;
+    }
+  }
+
+  async function calcRoute(){
+    clearRoute();
+    const mode = (praModeSeg.getAttribute('data-on')==='right') ? 'min' : 'max';
+    const pra = parseFloat(praKmInput.value)||0;
+    localStorage.setItem('dcmap_pra_km', String(pra));
+    localStorage.setItem('dcmap_pra_mode', mode);
+    logDebug(`Calcul route : mode=${mode}, PRA=${pra} km`);
+
+    // From
+    let from=null;
+    if(clientAddress.dataset.lat && clientAddress.dataset.lon){
+      from={lat:parseFloat(clientAddress.dataset.lat), lon:parseFloat(clientAddress.dataset.lon)};
+    }else{
+      const q=clientAddress.value.trim(); if(!q){return;}
+      try{
+        const res=await (await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`)).json();
+        if(!res.length){
+          routeStats.textContent=(LANG==='fr')?'Adresse introuvable.':'Address not found.';
+          logDebug('Adresse introuvable pour : ' + q);
+          return;
+        }
+        from={lat:parseFloat(res[0].lat),lon:parseFloat(res[0].lon)};
+      }catch(e){
+        routeStats.textContent=(LANG==='fr')?'Erreur géocodage.':'Geocoding error.';
+        logDebug('Erreur géocodage route : ' + e.message);
+        return;
+      }
+    }
+    // To
+    const value=(dcPicker2.value||siteDropdown.value||'').trim();
+    const dc=findDc(value);
+    if(!dc){
+      routeStats.textContent=(LANG==='fr'?'Veuillez choisir un DC de la liste.':'Please pick a DC from the list.');
+      logDebug('DC non trouvé pour la valeur "' + value + '".');
+      return;
+    }
+    const to={lat:dc.lat,lng:dc.lng};
+
+    addEndpoints(from,to);
+
+    drawCirclePra(from,pra,true);
+
+    const crow=haversineMeters({lat:from.lat,lon:from.lon},{lat:to.lat,lon:to.lng})/1000;
+    let used='OSRM', distKm=null, durSec=null, geom=null;
+
+    try{
+      const rt=await routeOSRMWithFallback(from,to);
+      if(rt){ distKm=rt.distance/1000; durSec=rt.duration; geom=rt.geometry; }
+      else{ used='est.'; distKm=crow*1.25; durSec=(distKm)/(70/60); }
+    }catch(e){
+      used='est.'; distKm=crow*1.25; durSec=(distKm)/(70/60);
+      logDebug('Erreur routing, on passe en estimation directe : ' + e.message);
+    }
+
+    if(geom) drawRouteGeoJSON(geom); else drawStraightLine(from,to);
+    const distLabel = (LANG==='fr')?'Distance':'Distance';
+    const durLabel  = (LANG==='fr')?'Durée':'Duration';
+    routeStats.innerHTML=`<b>${distLabel}:</b> ${fmtKm(distKm*1000)} — <b>${durLabel}:</b> ${fmtDur(durSec)}${used==='est.'?` <span class="small-note">(est.)</span>`:''} | <b>LoS:</b> ${crow.toFixed(1)} km`;
+    routeDisclaimer.style.display='block';
+    routeDisclaimer.textContent=(used==='OSRM')?T().routeDisclaimer:T().estimateMsg;
+
+    const {ok,margin}=computePraStatus(distKm,pra,mode);
+    setPraUI(ok,margin,mode,used);
+
+    routeGroup.removeLayer(praCircle); drawCirclePra(from,pra,ok);
+    const b=L.featureGroup([routeLine,startMarker,endMarker,praCircle].filter(Boolean)).getBounds().pad(0.2); map.fitBounds(b);
+
+    logDebug(`Route calculée (${used}) : dist=${distKm.toFixed(1)} km, LoS=${crow.toFixed(1)} km, status PRA=${ok?'OK':'NOK'}, marge=${Number.isFinite(margin)?margin.toFixed(1):'—'} km.`);
+  }
+
+  routeBtn.addEventListener('click',calcRoute);
+  [praKmInput].forEach(el=>el.addEventListener('change',calcRoute));
+  [praKmInput,clientAddress,dcPicker2].forEach(el=>el.addEventListener('keyup',e=>{ if(e.key==='Enter') calcRoute(); }));
+  routeClear.addEventListener('click',()=>{
+    clientAddress.value=''; delete clientAddress.dataset.lat; delete clientAddress.dataset.lon;
+    dcPicker2.value='';
+    routeStats.textContent=''; routeDisclaimer.style.display='none'; geoNote.style.display='none';
+    clearRoute();
+    logDebug('Réinitialisation du bloc Distance & PRA.');
+  });
+
+  function findDc(value){
+    if(!value) return null;
+    if(markersByDcName.has(value)){
+      const m=markersByDcName.get(value)[0].getLatLng();
+      return {lat:m.lat,lng:m.lng,marker:markersByDcName.get(value)[0]};
+    }
+    if(markersByOrangeCode.has(value)){
+      const m=markersByOrangeCode.get(value)[0].getLatLng();
+      return {lat:m.lat,lng:m.lng,marker:markersByOrangeCode.get(value)[0]};
+    }
+    for(const [k,v] of markersByDcName){
+      if(k.toLowerCase().startsWith(value.toLowerCase())){
+        const m=v[0].getLatLng(); return {lat:m.lat,lng:m.lng,marker:v[0]};
+      }
+    }
+    for(const [k,v] of markersByOrangeCode){
+      if(k.toLowerCase().startsWith(value.toLowerCase())){
+        const m=v[0].getLatLng(); return {lat:m.lat,lng:m.lng,marker:v[0]};
+      }
+    }
+    return null;
+  }
+
+  /* ==== Excel load avec fetch ==== */
+  async function loadExcel(){
+    try{
+      logDebug('Tentative de chargement Excel via fetch sur ' + url);
+      const res = await fetch(url);
+      if(!res.ok){
+        logDebug('ÉCHEC chargement Excel. HTTP ' + res.status + ' ' + res.statusText);
+        if(location.protocol === 'file:'){
+          logDebug('Cause probable : ouverture en file://. Utilisez un serveur HTTP local (ex : "python -m http.server").');
+        }
+        const msg = (LANG==='en')
+          ? 'Unable to load GDO_DataCenter_List.xlsx. Check that the file is in the same folder as index.html and that you are using HTTP (http://localhost…).'
+          : 'Impossible de charger GDO_DataCenter_List.xlsx. Vérifiez que le fichier est dans le même dossier que index.html et que vous ouvrez le site via HTTP (http://localhost…).';
+        alert(msg);
+        return;
+      }
+      const buf = await res.arrayBuffer();
+      logDebug('Excel reçu, taille buffer=' + buf.byteLength + ' octets.');
+      const wb = XLSX.read(new Uint8Array(buf),{type:'array'});
+      const sheetName = wb.Sheets['Consolidate List'] ? 'Consolidate List' : wb.SheetNames[0];
+      if(!sheetName){
+        logDebug('Aucune feuille Excel trouvée dans le classeur.');
+        return;
+      }
+      if(sheetName !== 'Consolidate List'){
+        logDebug('Feuille "Consolidate List" absente, utilisation de "' + sheetName + '".');
+      } else {
+        logDebug('Feuille utilisée : "Consolidate List".');
+      }
+      const sheet = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet,{defval:''});
+      logDebug('Nombre de lignes lues depuis Excel : ' + rows.length);
+
+      const typeOf = r => norm(r['Type of DC']).toLowerCase();
+      const isOpen   = r => ['1 - major','2 - opportunistic'].includes(typeOf(r));
+      const isFrozen = r => typeOf(r)==='4 - frozen';
+      const isClosed = r => typeOf(r)==='5 - closed';
+
+      const mapRow = (r)=> {
+        const d={supplier:norm(r['Supplier']),dcName:norm(r['Datacenter name (supplier code)']),typeDC:norm(r['Type of DC']),
+                 ocode:norm(r['Site Code Orange']),addr:norm(r['Address']),city:norm(r['City Area']),
+                 country:norm(r['Country']),region:norm(r['Region']||r['Région']||''),prox:norm(r['Plazza Proximity']),
+                 lat:num(r['Latitude']),lng:num(r['Longitude']),row:r};
+        return (Number.isFinite(d.lat)&&Number.isFinite(d.lng))?d:null;
+      };
+
+      const mapped = rows.map(mapRow).filter(Boolean);
+      logDebug('Lignes avec coordonnées valides : ' + mapped.length);
+
+      DATA_OPEN   = mapped.filter(p => isOpen(p.row));
+      DATA_FROZEN = mapped.filter(p => isFrozen(p.row));
+      DATA_CLOSED = mapped.filter(p => isClosed(p.row));
+
+      logDebug(`Répartition : OPEN=${DATA_OPEN.length}, FROZEN=${DATA_FROZEN.length}, CLOSED=${DATA_CLOSED.length}.`);
+
+      setLangTexts();
+      setTheme(localStorage.getItem('dcmap_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+      const savedPra = parseFloat(localStorage.getItem('dcmap_pra_km')); if(Number.isFinite(savedPra)) praKmInput.value = savedPra;
+      const savedMode = localStorage.getItem('dcmap_pra_mode')||'max'; praModeSeg.setAttribute('data-on', savedMode==='min'?'right':'left');
+
+      CURRENT_VIEW='open';
+      rebuildAllPointsFromDATA();
+      highlightViewButton();
+      applyFilters();
+      logDebug('Chargement Excel terminé sans exception.');
+    }catch(e){
+      logDebug('ERREUR parsing Excel (fetch) : ' + e.message);
+      console.error('Excel error:',e);
+    }
+  }
+  loadExcel();
+
+  /* === Export === */
+  if(exportBtn){
+    exportBtn.addEventListener('click', async ()=>{
+      try{
+        const view = CURRENT_VIEW;
+        const supplier = (supplierFilter.value||'').trim();
+        const region   = (regionFilter.value||'').trim();
+        const country  = (countryFilter.value||'').trim();
+        const q        = (searchInput.value||'').trim().toLowerCase();
+
+        logDebug(`Export demandé (vue=${view}, supplier="${supplier}", region="${region}", country="${country}", query="${q}")`);
+
+        const res = await fetch(EXCEL_URL + '?v=' + Date.now());
+        if(!res.ok){
+          logDebug(`Export : HTTP ${res.status} ${res.statusText} en chargeant ${EXCEL_URL}`);
+          alert((LANG==='en') ? 'Excel export load failed.' : 'Échec du chargement Excel pour l’export.');
+          return;
+        }
+        const buf = await res.arrayBuffer();
+        logDebug('Export : buffer Excel reçu, taille=' + buf.byteLength + ' octets.');
+        const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+        const sheetName = wb.Sheets['Consolidate List'] ? 'Consolidate List' : wb.SheetNames[0];
+        if(!sheetName){
+          logDebug('Export : aucune feuille disponible dans le fichier Excel.');
+          alert((LANG==='en') ? 'No sheet in Excel file.' : 'Aucune feuille dans le fichier Excel.');
+          return;
+        }
+        const sheet = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+        logDebug('Export : lignes totales dans la feuille "' + sheetName + '" = ' + rows.length);
+
+        const typeOf = r => norm(r['Type of DC']).toLowerCase();
+        const isOpen   = r => ['1 - major','2 - opportunistic'].includes(typeOf(r));
+        const isFrozen = r => typeOf(r)==='4 - frozen';
+        const isClosed = r => typeOf(r)==='5 - closed';
+
+        const mapped = rows.map(r=>{
+          const d={supplier:norm(r['Supplier']),dcName:norm(r['Datacenter name (supplier code)']),typeDC:norm(r['Type of DC']),
+                   ocode:norm(r['Site Code Orange']),addr:norm(r['Address']),city:norm(r['City Area']),
+                   country:norm(r['Country']),region:norm(r['Region']||r['Région']||''),prox:norm(r['Plazza Proximity']),
+                   lat:num(r['Latitude']),lng:num(r['Longitude']),row:r};
+          return (Number.isFinite(d.lat)&&Number.isFinite(d.lng))?d:null;
+        }).filter(Boolean);
+
+        let active = mapped;
+        if(view==='open')   active = mapped.filter(p => isOpen(p.row));
+        if(view==='frozen') active = mapped.filter(p => isFrozen(p.row));
+        if(view==='closed') active = mapped.filter(p => isClosed(p.row));
+        logDebug('Export : lignes actives après filtrage vue = ' + active.length);
+
+        function matchesQuery(p){
+          if(!q) return true;
+          const text = [
+            p.supplier, p.country, p.region, p.dcName,
+            norm(p.row['Site Code Orange']), norm(p.row['City Area']),
+            norm(p.row['Address']), norm(p.row['Datacenter name (supplier code)'])
+          ].join(' ').toLowerCase();
+          return text.includes(q);
+        }
+        const filtered = active.filter(p =>
+          (supplier ? p.supplier===supplier : true) &&
+          (region   ? p.region===region     : true) &&
+          (country  ? p.country===country   : true) &&
+          matchesQuery(p)
+        );
+        logDebug('Export : lignes après tous filtres = ' + filtered.length);
+
+        const EXPORT_COLS=['Zone','Region','Country','City Area','Supplier','Site Code Orange','Address','Datacenter name (supplier code)','Type of DC','DC Manager'];
+        function getField(row,names){
+          const keys = Object.keys(row);
+          for(const want of (Array.isArray(names)?names:[names])){
+            if(want in row) return row[want];
+            const hit=keys.find(k => norm(k).toLowerCase()===norm(want).toLowerCase());
+            if(hit) return row[hit];
+          }
+          return '';
+        }
+        function buildExportRow(r){
+          return {
+            'Zone': getField(r, ['Zone','Zone DC','Zone géographique']),
+            'Region': getField(r, ['Region','Région']),
+            'Country': getField(r, 'Country'),
+            'City Area': getField(r, 'City Area'),
+            'Supplier': getField(r, 'Supplier'),
+            'Site Code Orange': getField(r, 'Site Code Orange'),
+            'Address': getField(r, 'Address'),
+            'Datacenter name (supplier code)': getField(r, 'Datacenter name (supplier code)'),
+            'Type of DC': getField(r, 'Type of DC'),
+            'DC Manager': getField(r, ['DC Manager','Dc Manager'])
+          };
+        }
+        const exportRows = filtered.map(p => buildExportRow(p.row));
+        if(!exportRows.length){
+          logDebug('Export : aucune donnée à exporter après filtrage.');
+          alert((LANG==='en') ? 'No data to export.' : 'Aucune donnée à exporter.');
+          return;
+        }
+        const wbOut = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportRows, {header:EXPORT_COLS, skipHeader:false});
+        ws['!cols'] = EXPORT_COLS.map(h=>({wch: Math.max(h.length, ...exportRows.map(r=>String(r[h]||'').length)) + 2 }));
+        XLSX.utils.book_append_sheet(wbOut, ws, 'Export');
+
+        const parts=[]; if(supplier) parts.push(supplier.replace(/[^\w-]+/g,'_')); if(country) parts.push(country.replace(/[^\w-]+/g,'_')); if(region) parts.push(region.replace(/[^\w-]+/g,'_'));
+        parts.push(view);
+        const suffix = parts.length ? '_'+parts.join('_') : '';
+        const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+        const filename = `DCMAP_export${suffix}_${stamp}.xlsx`;
+        XLSX.writeFile(wbOut, filename);
+        logDebug('Export terminé. Fichier généré : ' + filename);
+      }catch(e){
+        console.error(e);
+        logDebug('ERREUR export : ' + e.message);
+        alert((LANG==='en') ? 'Export failed. See console.' : 'Échec de l’export. Voir la console / debug.');
+      }
+    });
+  }
+
+  /* Initialisation textes */
+  setLangTexts();
+  setTheme(localStorage.getItem('dcmap_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+});
+</script>
+
+<!-- Script pour l'accordéon -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.acc-section').forEach(section => {
+    const header = section.querySelector('.acc-header');
+    const body = section.querySelector('.acc-body');
+    if (!header || !body) return;
+
+    if (section.classList.contains('open')) {
+      body.style.maxHeight = body.scrollHeight + 'px';
+    }
+
+    header.addEventListener('click', () => {
+      const isOpen = section.classList.contains('open');
+      if (isOpen) {
+        section.classList.remove('open');
+        body.style.maxHeight = '0px';
+      } else {
+        section.classList.add('open');
+        body.style.maxHeight = body.scrollHeight + 'px';
+      }
+    });
+  });
+});
+</script>
+
+</body>
+</html>
